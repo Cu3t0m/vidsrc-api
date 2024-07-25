@@ -8,9 +8,17 @@ from fastapi import FastAPI, HTTPException, Query
 from sources.f2cloud import F2CloudExtractor
 from sources.filemoon import FilemoonExtractor
 from utils import Utilities, VidSrcError, NoSourcesFound
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-
+# Set up CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 SUPPORTED_SOURCES = ["F2Cloud", "Filemoon"]
 
 class VidSrcExtractor:
