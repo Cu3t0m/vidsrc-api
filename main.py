@@ -19,7 +19,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-SUPPORTED_SOURCES = ["F2Cloud", "Filemoon"]
+SUPPORTED_SOURCES = ["Server 1", "Server 2"]
 
 class VidSrcExtractor:
     BASE_URL = "https://vidsrc.to"
@@ -28,7 +28,7 @@ class VidSrcExtractor:
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
     KEYS = {}
 
-    def __init__(self, source_name: str = "F2Cloud", fetch_subtitles: bool = False) -> None:
+    def __init__(self, source_name: str = "Server 1", fetch_subtitles: bool = False) -> None:
         self.source_name = source_name
         self.fetch_subtitles = fetch_subtitles
         self.KEYS = F2CloudExtractor.get_keys()
@@ -67,50 +67,72 @@ class VidSrcExtractor:
 
         data = req.json()
         return {video.get("title"): video.get("id") for video in data.get("result")}
-
+        
     def get_streams(self, media_type: str, media_id: str, season: Optional[str], episode: Optional[str]) -> Tuple[Optional[List], Optional[Dict], Optional[str]]:
+        print(f"get_streams called with media_type={media_type}, media_id={media_id}, season={season}, episode={episode}")
+
         url = f"{VidSrcExtractor.BASE_URL}/embed/{media_type}/{media_id}"
         if season and episode:
             url += f"/{season}/{episode}"
+        print(f"Constructed URL: {url}")
 
         req = requests.get(url)
+        print(f"Request made to URL: {url}, status_code: {req.status_code}")
+
         if req.status_code != 200:
+            print("Request failed, returning None")
             return None, None, None
 
         soup = BeautifulSoup(req.text, "html.parser")
         sources_code = soup.find('a', {'data-id': True})
+        print(f"sources_code element found: {sources_code}")
+
         if not sources_code:
+            print("No sources_code found, returning None")
             return None, None, None
 
         sources_code = sources_code.get("data-id")
+        print(f"sources_code data-id: {sources_code}")
+
         sources = self.get_sources(sources_code)
+        print(f"Sources retrieved: {sources}")
+
         source = sources.get(self.source_name)
+        print(f"Source retrieved for {self.source_name}: {source}")
+
         if not source:
+            print(f"No source found for {self.source_name}, returning None")
             return None, None, None
 
         source_url = self.get_source_url(source)
+        print(f"Source URL: {source_url}")
 
-        if self.source_name == "F2Cloud":
+        if self.source_name == "Server 1":
+            print("Using F2CloudExtractor")
             extractor = F2CloudExtractor(self.KEYS)
             return extractor.resolve_source(url=source_url, fetch_subtitles=self.fetch_subtitles, provider_url=VidSrcExtractor.PROVIDER_URL)
 
-        elif self.source_name == "Filemoon":
+        elif self.source_name == "Server 2":
+            print("Using FilemoonExtractor")
             extractor = FilemoonExtractor()
             return extractor.resolve_source(url=source_url, fetch_subtitles=self.fetch_subtitles, provider_url=VidSrcExtractor.PROVIDER_URL)
 
         else:
+            print("No matching source name found, returning None")
             return None, None, None
+
 
 def get_streaming_url(tmdb_id: str, source_name: str, media_type: str, season: Optional[str] = None, episode: Optional[str] = None) -> str:
     extractor = VidSrcExtractor(source_name=source_name, fetch_subtitles=False)
     streams, subtitles, source_url = extractor.get_streams(media_type, tmdb_id, season, episode)
+    print(streams)
     if streams:
         return streams[0] if isinstance(streams, list) else streams
     else:
         raise NoSourcesFound("Could not find any streams for the given parameters.")
 
 @app.get("/api/scrape/{tmdb_id}")
-def scrape_streaming_url(tmdb_id: str, s: Optional[str] = Query(None), e: Optional[str] = Query(None), source_name: str = "F2Cloud", media_type: str = "movie"):
+def scrape_streaming_url(tmdb_id: str, s: Optional[str] = Query(None), e: Optional[str] = Query(None), source_name: str = "Server 1", media_type: str = "movie"):
     try:
         url = get_streaming_url(
             tmdb_id=tmdb_id,
